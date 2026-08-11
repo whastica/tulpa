@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import type { Grupo, Socio, MovimientoLedger, Prestamo } from '@/types';
 import {
-  grupoInicial,
-  sociosIniciales,
   movimientosIniciales,
   prestamosIniciales,
 } from './data';
@@ -13,13 +11,14 @@ import {
 
 type MockStore = {
   // ── State ──
-  grupo: Grupo;
+  grupo: Grupo | null;
   socios: Socio[];
   movimientos: MovimientoLedger[];
   prestamos: Prestamo[];
 
   // ── Read: Grupo ──
-  getGrupo: () => Grupo;
+  getGrupo: () => Grupo | null;
+  crearGrupo: (datos: Omit<Grupo, 'id' | 'estado'>) => Grupo;
   actualizarGrupo: (datos: Partial<Grupo>) => void;
 
   // ── Read: Socios ──
@@ -27,6 +26,7 @@ type MockStore = {
   getSocioPorId: (id: string) => Socio | undefined;
   getSociosPorGrupo: (grupoId: string) => Socio[];
   getSociosActivos: () => Socio[];
+  registrarSocios: (socios: Omit<Socio, 'id'>[]) => void;
   actualizarSocio: (id: string, datos: Partial<Socio>) => void;
 
   // ── Read: Movimientos ──
@@ -61,17 +61,28 @@ function generarId(prefijo: string): string {
 
 export const useMockStore = create<MockStore>((set, get) => ({
   // ── State ──
-  grupo: grupoInicial,
-  socios: sociosIniciales,
+  grupo: null,
+  socios: [],
   movimientos: movimientosIniciales,
   prestamos: prestamosIniciales,
 
   // ── Grupo ──
   getGrupo: () => get().grupo,
 
+  crearGrupo: (datos) => {
+    const id = generarId('grupo');
+    const nuevo: Grupo = {
+      ...datos,
+      id,
+      estado: 'activo',
+    };
+    set({ grupo: nuevo });
+    return nuevo;
+  },
+
   actualizarGrupo: (datos) =>
     set((state) => ({
-      grupo: { ...state.grupo, ...datos },
+      grupo: state.grupo ? { ...state.grupo, ...datos } : null,
     })),
 
   // ── Socios ──
@@ -84,6 +95,16 @@ export const useMockStore = create<MockStore>((set, get) => ({
 
   getSociosActivos: () =>
     get().socios.filter((s) => s.estado === 'activo'),
+
+  registrarSocios: (socios) => {
+    const nuevosSocios: Socio[] = socios.map((s) => ({
+      ...s,
+      id: generarId('socio'),
+    }));
+    set((state) => ({
+      socios: [...state.socios, ...nuevosSocios],
+    }));
+  },
 
   actualizarSocio: (id, datos) =>
     set((state) => ({

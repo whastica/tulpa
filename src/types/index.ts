@@ -47,6 +47,7 @@ type Socio = {
   id: string;
   grupo_id: string;
   user_id: string;
+  nombre: string;
   cuota_mensual_fija: number;
   estado: SocioEstado;
   fecha_ingreso: ISODateString;
@@ -78,6 +79,18 @@ type Prestamo = {
   saldo_pendiente: number;
 };
 
+// ──────────────────────────────────────────────
+// Auth types
+// ──────────────────────────────────────────────
+
+type RolUsuario = 'principal' | 'socio';
+
+type Sesion = {
+  userId: string;
+  rol: RolUsuario;
+  socioId: string | null;
+};
+
 export type {
   ISODateString,
   ISODateTimeString,
@@ -89,4 +102,6 @@ export type {
   Socio,
   MovimientoLedger,
   Prestamo,
+  RolUsuario,
+  Sesion,
 };
