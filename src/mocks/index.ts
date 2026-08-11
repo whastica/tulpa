@@ -1,6 +1,6 @@
 export { useMockStore } from './store';
 export {
-  grupoInicial,
+  datasetPrueba,
   sociosIniciales,
   movimientosIniciales,
   prestamosIniciales,
