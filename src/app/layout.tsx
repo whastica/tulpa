@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme-provider';
+import { Toaster } from '@/components/ui/sonner';
 import { SessionProvider } from '@/features/auth';
 import './globals.css';
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
           <TooltipProvider>
             <SessionProvider>{children}</SessionProvider>
           </TooltipProvider>
+          <Toaster richColors position="bottom-right" />
         </ThemeProvider>
       </body>
     </html>

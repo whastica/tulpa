@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { Grupo, Socio, MovimientoLedger, Prestamo } from '@/types';
 import {
+  datasetPrueba,
+  sociosIniciales,
   movimientosIniciales,
   prestamosIniciales,
 } from './data';
@@ -46,13 +48,28 @@ type MockStore = {
 };
 
 // ──────────────────────────────────────────────
-// ID generator
+// ID generator (por prefijo, evita colisiones con el dataset sembrado)
 // ──────────────────────────────────────────────
 
-let contadorId = 1;
+function maxIdPorPrefijo(items: readonly { id: string }[]): Record<string, number> {
+  const maximo: Record<string, number> = {};
+  for (const item of items) {
+    const [prefijo, numero] = item.id.split('-');
+    maximo[prefijo] = Math.max(maximo[prefijo] ?? 0, Number(numero) ?? 0);
+  }
+  return maximo;
+}
+
+const contadores: Record<string, number> = {
+  ...maxIdPorPrefijo(sociosIniciales),
+  ...maxIdPorPrefijo(movimientosIniciales),
+  ...maxIdPorPrefijo(prestamosIniciales),
+  grupo: Number(datasetPrueba.id.split('-')[1]) ?? 1,
+};
+
 function generarId(prefijo: string): string {
-  contadorId++;
-  return `${prefijo}-${String(contadorId).padStart(3, '0')}`;
+  contadores[prefijo] = (contadores[prefijo] ?? 0) + 1;
+  return `${prefijo}-${String(contadores[prefijo]).padStart(3, '0')}`;
 }
 
 // ──────────────────────────────────────────────
@@ -60,9 +77,9 @@ function generarId(prefijo: string): string {
 // ──────────────────────────────────────────────
 
 export const useMockStore = create<MockStore>((set, get) => ({
-  // ── State ──
-  grupo: null,
-  socios: [],
+  // ── State (sembrado con el dataset demo) ──
+  grupo: datasetPrueba,
+  socios: sociosIniciales,
   movimientos: movimientosIniciales,
   prestamos: prestamosIniciales,
 

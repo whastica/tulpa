@@ -273,8 +273,10 @@ export const movimientosIniciales: MovimientoLedger[] = [
   { id: 'mov-085', grupo_id: 'grupo-001', socio_id: 'socio-012', tipo: 'aporte', monto: 150000, fecha: '2025-06-07', comprobante_url: null, corrige_movimiento_id: null, nota: null, creado_por: 'user-001', creado_en: '2025-06-07T08:20:00Z' },
   { id: 'mov-086', grupo_id: 'grupo-001', socio_id: 'socio-013', tipo: 'aporte', monto: 100000, fecha: '2025-06-08', comprobante_url: null, corrige_movimiento_id: null, nota: null, creado_por: 'user-001', creado_en: '2025-06-08T07:10:00Z' },
   { id: 'mov-087', grupo_id: 'grupo-001', socio_id: 'socio-015', tipo: 'aporte', monto: 75000, fecha: '2025-06-06', comprobante_url: null, corrige_movimiento_id: null, nota: null, creado_por: 'user-001', creado_en: '2025-06-06T09:40:00Z' },
-  // Pago parcial préstamo socio-010
-  { id: 'mov-088', grupo_id: 'grupo-001', socio_id: 'socio-010', tipo: 'pago_prestamo', monto: 200000, fecha: '2025-06-20', comprobante_url: null, corrige_movimiento_id: null, nota: 'Pago parcial cuota 1', creado_por: 'user-001', creado_en: '2025-06-20T11:00:00Z' },
+  // Pago parcial préstamo socio-010 (monto total incluye capital + interés)
+  { id: 'mov-088', grupo_id: 'grupo-001', socio_id: 'socio-010', tipo: 'pago_prestamo', monto: 200000, fecha: '2025-06-20', comprobante_url: null, corrige_movimiento_id: null, nota: 'Pago parcial cuota 1 (capital 184.000 + interés 16.000)', creado_por: 'user-001', creado_en: '2025-06-20T11:00:00Z' },
+  // Interés cobrado en el pago anterior (2% mensual sobre $800.000). Informativo para rendimientos.
+  { id: 'mov-090', grupo_id: 'grupo-001', socio_id: 'socio-010', tipo: 'interes', monto: 16000, fecha: '2025-06-20', comprobante_url: null, corrige_movimiento_id: null, nota: 'Interés cuota 1 préstamo socio-010', creado_por: 'user-001', creado_en: '2025-06-20T11:00:01Z' },
   // Préstamo socio-004
   { id: 'mov-089', grupo_id: 'grupo-001', socio_id: 'socio-004', tipo: 'prestamo', monto: 500000, fecha: '2025-06-10', comprobante_url: null, corrige_movimiento_id: null, nota: 'Préstamo aprobado por principal', creado_por: 'user-001', creado_en: '2025-06-10T14:00:00Z' },
 ];
@@ -288,7 +290,7 @@ export const prestamosIniciales: Prestamo[] = [
     tasa_aplicada: 0.02,
     fecha_solicitud: '2025-05-15',
     estado: 'activo',
-    saldo_pendiente: 600000,
+    saldo_pendiente: 616000,
   },
   {
     id: 'prest-002',

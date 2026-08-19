@@ -92,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   function renderNavItem({ href, label, description, icon: Icon }: NavItem) {
-    const isActive = pathname === href;
+    const isActive = pathname === href || pathname.startsWith(`${href}/`);
     return (
       <Link
         key={href}
