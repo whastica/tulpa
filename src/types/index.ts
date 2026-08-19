@@ -23,6 +23,7 @@ type MovimientoTipo =
   | 'mora'
   | 'prestamo'
   | 'pago_prestamo'
+  | 'interes'
   | 'correccion'
   | 'retiro_anticipado'
   | 'renovacion'

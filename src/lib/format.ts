@@ -1,4 +1,4 @@
-const MESES_CORTO = [
+export const MESES_CORTO = [
   'ene', 'feb', 'mar', 'abr', 'may', 'jun',
   'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
 ];
