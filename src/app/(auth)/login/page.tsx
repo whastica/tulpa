@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMockStore } from '@/mocks';
 import { useSession } from '@/features/auth';
 import { Button } from '@/components/ui/button';
@@ -14,23 +14,51 @@ import {
   Users,
   ArrowLeft,
   ChevronRight,
+  Ticket,
 } from 'lucide-react';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const { login, isAuthenticated } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const codigo = searchParams.get('codigo') ?? '';
+
+  const grupos = useMockStore((s) => s.grupos);
   const socios = useMockStore((s) => s.socios);
+  const seleccionarGrupoPorCodigo = useMockStore((s) => s.seleccionarGrupoPorCodigo);
+
   const [seleccion, setSeleccion] = useState<'inicio' | 'socio'>('inicio');
+
+  const grupo = useMemo(
+    () => grupos.find((g) => g.codigo === codigo) ?? null,
+    [grupos, codigo]
+  );
 
   useEffect(() => {
     if (isAuthenticated) {
       router.replace('/dashboard');
+      return;
     }
-  }, [isAuthenticated, router]);
+    if (!grupo) {
+      router.replace('/');
+      return;
+    }
+    seleccionarGrupoPorCodigo(codigo);
+  }, [isAuthenticated, grupo, codigo, router, seleccionarGrupoPorCodigo]);
 
-  if (isAuthenticated) {
+  if (isAuthenticated || !grupo) {
     return null;
   }
+
+  const sociosDelGrupo = socios.filter((s) => s.grupo_id === grupo.id);
 
   function handlePrincipal() {
     login('principal');
@@ -70,13 +98,25 @@ export default function LoginPage() {
             <p className="mt-1 text-base text-muted-foreground">
               Fondo de Ahorro y Crédito Comunal
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Gestión digital confiable para tu comunidad.
-            </p>
           </div>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8">
+          {/* Contexto del grupo */}
+          <div className="mb-6 flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">Grupo de ahorro</span>
+              <span className="truncate text-base font-semibold text-foreground">
+                {grupo.nombre}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Ticket className="size-4 text-muted-foreground" aria-hidden="true" />
+              <span className="text-muted-foreground">Código:</span>
+              <span className="font-mono font-semibold text-foreground">{grupo.codigo}</span>
+            </div>
+          </div>
+
           {seleccion === 'inicio' ? (
             <div className="flex flex-col gap-3">
               <button
@@ -141,15 +181,15 @@ export default function LoginPage() {
                 </Button>
               </div>
 
-              {socios.length === 0 ? (
+              {sociosDelGrupo.length === 0 ? (
                 <EmptyState
                   icon={<Users className="size-8" />}
                   title="Sin socios registrados"
-                  description="Aún no hay socios configurados en el grupo."
+                  description="Este grupo aún no tiene socios configurados. El Principal debe agregarlos desde el panel."
                 />
               ) : (
                 <div className="flex max-h-80 flex-col gap-2 overflow-y-auto pr-1">
-                  {socios.map((socio) => (
+                  {sociosDelGrupo.map((socio) => (
                     <button
                       key={socio.id}
                       type="button"

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { ModalAporte } from './modal-aporte';
-import { ModalPrestamo } from './modal-prestamo';
+import { ModalSolicitarPrestamo } from './modal-solicitar-prestamo';
 import { ModalPagoPrestamo } from './modal-pago-prestamo';
 import { ModalRetiro } from './modal-retiro';
 import { ModalCierre } from './modal-cierre';
@@ -20,11 +20,9 @@ type ModalTipo = 'aporte' | 'prestamo' | 'pago' | 'retiro' | 'cierre';
 
 export function BarraAcciones({
   grupo,
-  fondoTotal,
   liquidez,
 }: {
   grupo: Grupo;
-  fondoTotal: number;
   liquidez: number;
 }) {
   const [modalActivo, setModalActivo] = useState<ModalTipo | null>(null);
@@ -71,11 +69,9 @@ export function BarraAcciones({
       </div>
 
       <ModalAporte open={modalActivo === 'aporte'} onOpenChange={(a) => !a && cerrar()} />
-      <ModalPrestamo
+      <ModalSolicitarPrestamo
         open={modalActivo === 'prestamo'}
         onOpenChange={(a) => !a && cerrar()}
-        fondoTotal={fondoTotal}
-        liquidez={liquidez}
       />
       <ModalPagoPrestamo open={modalActivo === 'pago'} onOpenChange={(a) => !a && cerrar()} />
       <ModalRetiro

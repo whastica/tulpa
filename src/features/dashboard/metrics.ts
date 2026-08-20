@@ -70,14 +70,20 @@ export function calcularEstadoPagoSocio(
   );
 
   let mesesAtrasados = 0;
-  const fecha = new Date(`${claveInicio}-01`);
-  const fechaFin = new Date(`${mesFin}-01`);
+  const [anioInicio, mesInicio] = claveInicio.split('-').map(Number);
+  const [anioFin, mesFinNum] = mesFin.split('-').map(Number);
+  let anio = anioInicio;
+  let mes = mesInicio;
 
-  while (fecha <= fechaFin) {
-    const clave = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+  while (anio < anioFin || (anio === anioFin && mes < mesFinNum)) {
+    const clave = `${anio}-${String(mes).padStart(2, '0')}`;
     const tieneAporte = aportesDelSocio.some((m) => m.fecha.slice(0, 7) === clave);
     if (!tieneAporte) mesesAtrasados++;
-    fecha.setMonth(fecha.getMonth() + 1);
+    mes += 1;
+    if (mes > 12) {
+      mes = 1;
+      anio += 1;
+    }
   }
 
   const cuotaAtrasada = cuota * mesesAtrasados;
@@ -218,7 +224,7 @@ export function construirResumenSocios(opts: {
     let estado: EstadoSocioFinanciero;
     if (socio.estado === 'retirado_anticipado') {
       estado = 'retirado_anticipado';
-    } else if (cuotasPendientes > 0) {
+    } else if (cuotasPagadas < cuotasEsperadas - 1) {
       estado = 'en_mora';
     } else {
       estado = 'al_dia';

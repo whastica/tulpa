@@ -7,13 +7,13 @@ import { LoadingCard } from '@/components/loading-state';
 import {
   useDashboardFinanciero,
   ResumenTarjetas,
-  TablaSocios,
   GraficoEvolucion,
   EstadoConexion,
   BarraAcciones,
-  SeccionMovimientos,
+  TarjetaInvitacion,
+  SeccionSolicitudesPrestamo,
 } from '@/features/dashboard';
-import { ShieldX, FolderX, Landmark } from 'lucide-react';
+import { ShieldX, FolderX } from 'lucide-react';
 
 function EsqueletoCarga() {
   return (
@@ -74,11 +74,18 @@ export default function GrupoDashboardPage() {
       />
 
       {esPrincipal && grupo && (
+        <TarjetaInvitacion grupo={grupo} />
+      )}
+
+      {esPrincipal && grupo && (
         <BarraAcciones
           grupo={grupo}
-          fondoTotal={metricas?.fondoTotal ?? 0}
           liquidez={metricas?.liquidez ?? 0}
         />
+      )}
+
+      {grupo && (
+        <SeccionSolicitudesPrestamo grupo={grupo} />
       )}
 
       {metricas ? (
@@ -92,16 +99,11 @@ export default function GrupoDashboardPage() {
 
           <GraficoEvolucion serie={metricas.serie} />
 
-          {sinMovimientos ? (
+          {sinMovimientos && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Landmark className="size-4" aria-hidden="true" />
               Aún no hay movimientos registrados para este grupo.
             </p>
-          ) : (
-            <TablaSocios filas={metricas.filas} />
           )}
-
-          <SeccionMovimientos grupoId={grupoId} esAdministrador={esPrincipal} />
         </>
       ) : (
         <EsqueletoCarga />

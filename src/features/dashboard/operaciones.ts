@@ -3,6 +3,7 @@
 import { useMockStore } from '@/mocks';
 import type { Grupo, Prestamo } from '@/types';
 import { calcularFondoTotal, calcularLiquidez, calcularRendimientosTotales } from './metrics';
+import { formatMoneda } from '@/lib/format';
 
 // ──────────────────────────────────────────────
 // Contrato de la capa de operaciones.
@@ -34,6 +35,40 @@ function validarPrincipal(grupoId: string, userId: string | null | undefined): R
     return { ok: false, error: 'Solo el principal del grupo puede realizar operaciones.' };
   }
   return { ok: true };
+}
+
+function validarSocioActivoDeGrupo(
+  grupoId: string,
+  socioId: string
+): ResultadoOperacion {
+  const state = useMockStore.getState();
+  const grupo = obtenerGrupo(grupoId);
+  if (!grupo) return { ok: false, error: 'El grupo no existe.' };
+  if (grupo.estado !== 'activo') return { ok: false, error: 'El grupo no está activo.' };
+  const socio = state.getSocioPorId(socioId);
+  if (!socio || socio.grupo_id !== grupo.id) {
+    return { ok: false, error: 'El socio no pertenece al grupo.' };
+  }
+  if (socio.estado !== 'activo') {
+    return { ok: false, error: 'El socio no está activo.' };
+  }
+  return { ok: true };
+}
+
+function limitesPrestamoGrupo(grupoId: string): {
+  fondoTotal: number;
+  liquidez: number;
+  montoMaximo: number;
+} {
+  const state = useMockStore.getState();
+  const movimientos = state.getMovimientosPorGrupo(grupoId);
+  const prestamosActivos = state
+    .getPrestamos()
+    .filter((p) => p.grupo_id === grupoId && p.estado === 'activo')
+    .reduce((sum, p) => sum + p.saldo_pendiente, 0);
+  const fondoTotal = calcularFondoTotal(movimientos, grupoId);
+  const liquidez = calcularLiquidez(fondoTotal, prestamosActivos);
+  return { fondoTotal, liquidez, montoMaximo: fondoTotal * 0.5 };
 }
 
 function hoyISO(): string {
@@ -235,13 +270,136 @@ export function registrarPrestamo(opts: {
 }
 
 // ──────────────────────────────────────────────
-// Pago de Préstamo (interés simple sobre saldo)
+// Solicitud de Préstamo (iniciada por el Socio)
+// ──────────────────────────────────────────────
+
+export function solicitarPrestamoSocio(opts: {
+  grupoId: string;
+  socioId: string;
+  monto: number;
+  fecha: string;
+  userId: string | null | undefined;
+}): ResultadoOperacion {
+  const base = validarSocioActivoDeGrupo(opts.grupoId, opts.socioId);
+  if (!base.ok) return base;
+  if (!opts.monto || opts.monto <= 0) {
+    return { ok: false, error: 'El monto debe ser mayor a 0.' };
+  }
+
+  const state = useMockStore.getState();
+  const grupo = obtenerGrupo(opts.grupoId)!;
+  const socio = state.getSocioPorId(opts.socioId)!;
+
+  const { liquidez, montoMaximo } = limitesPrestamoGrupo(opts.grupoId);
+  if (opts.monto > montoMaximo) {
+    return {
+      ok: false,
+      error: `El monto supera el límite permitido (máximo 50% del fondo: $${montoMaximo.toLocaleString('es-CO')}).`,
+    };
+  }
+  if (opts.monto > liquidez) {
+    return {
+      ok: false,
+      error: `Liquidez insuficiente para el desembolso (disponible: $${liquidez.toLocaleString('es-CO')}).`,
+    };
+  }
+
+  const yaPendiente = state
+    .getSolicitudesPorSocio(opts.socioId)
+    .some((s) => s.grupo_id === opts.grupoId && s.estado === 'pendiente');
+  if (yaPendiente) {
+    return { ok: false, error: 'Ya tienes una solicitud de préstamo pendiente de aprobación.' };
+  }
+
+  const solicitud = state.crearSolicitudPrestamo({
+    grupo_id: grupo.id,
+    socio_id: socio.id,
+    monto_solicitado: opts.monto,
+    fecha_solicitud: opts.fecha,
+    estado: 'pendiente',
+    respuesta_nota: null,
+  });
+
+  state.crearNotificacion({
+    grupo_id: grupo.id,
+    tipo: 'solicitud_prestamo',
+    para_rol: 'principal',
+    socio_id: socio.id,
+    titulo: 'Nueva solicitud de préstamo',
+    mensaje: `${socio.nombre} solicita ${formatMoneda(opts.monto)}. Revisa la petición desde el panel del grupo.`,
+    leida: false,
+  });
+
+  return { ok: true, data: { solicitudId: solicitud.id } };
+}
+
+// ──────────────────────────────────────────────
+// Respuesta a Solicitud de Préstamo (Principal)
+// ──────────────────────────────────────────────
+
+export function responderSolicitudPrestamo(opts: {
+  solicitudId: string;
+  aprobada: boolean;
+  nota?: string;
+  userId: string | null | undefined;
+}): ResultadoOperacion {
+  const state = useMockStore.getState();
+  const solicitud = state.getSolicitudesPrestamo().find((s) => s.id === opts.solicitudId);
+  if (!solicitud) return { ok: false, error: 'La solicitud no existe.' };
+
+  const grupo = obtenerGrupo(solicitud.grupo_id);
+  if (!grupo) return { ok: false, error: 'El grupo no existe.' };
+  if (grupo.estado !== 'activo') return { ok: false, error: 'El grupo no está activo.' };
+  if (!esPrincipalDe(grupo, opts.userId)) {
+    return { ok: false, error: 'Solo el principal del grupo puede responder solicitudes.' };
+  }
+  if (solicitud.estado !== 'pendiente') {
+    return { ok: false, error: 'La solicitud ya fue respondida.' };
+  }
+
+  const socio = state.getSocioPorId(solicitud.socio_id);
+  if (!socio) return { ok: false, error: 'El socio no existe.' };
+
+  if (opts.aprobada) {
+    const resultado = registrarPrestamo({
+      grupoId: grupo.id,
+      socioId: socio.id,
+      monto: solicitud.monto_solicitado,
+      fecha: hoyISO(),
+      userId: opts.userId,
+    });
+    if (!resultado.ok) return resultado;
+  }
+
+  state.actualizarSolicitudPrestamo(solicitud.id, {
+    estado: opts.aprobada ? 'aprobada' : 'rechazada',
+    respuesta_nota: opts.nota?.trim() ? opts.nota.trim() : null,
+  });
+
+  state.crearNotificacion({
+    grupo_id: grupo.id,
+    tipo: 'respuesta_solicitud',
+    para_rol: 'socio',
+    socio_id: socio.id,
+    titulo: opts.aprobada ? 'Préstamo aprobado' : 'Solicitud rechazada',
+    mensaje: opts.aprobada
+      ? `Tu solicitud de ${formatMoneda(solicitud.monto_solicitado)} fue aprobada por el principal.`
+      : `Tu solicitud de ${formatMoneda(solicitud.monto_solicitado)} fue rechazada${opts.nota?.trim() ? `: ${opts.nota.trim()}` : ''}.`,
+    leida: false,
+  });
+
+  return { ok: true };
+}
+
+// ──────────────────────────────────────────────
+// Pago de Préstamo (capital e interés separados)
 // ──────────────────────────────────────────────
 
 export function registrarPagoPrestamo(opts: {
   grupoId: string;
   prestamoId: string;
-  monto: number;
+  montoCapital: number;
+  montoInteres: number;
   fecha: string;
   userId: string | null | undefined;
 }): ResultadoOperacion {
@@ -257,55 +415,55 @@ export function registrarPagoPrestamo(opts: {
   if (prestamo.estado !== 'activo') {
     return { ok: false, error: 'El préstamo ya está pagado.' };
   }
-  if (!opts.monto || opts.monto <= 0) {
-    return { ok: false, error: 'El monto debe ser mayor a 0.' };
+
+  const montoCapital = opts.montoCapital;
+  const montoInteres = opts.montoInteres;
+
+  if (montoCapital < 0 || montoInteres < 0) {
+    return { ok: false, error: 'Los montos no pueden ser negativos.' };
   }
-
-  const interes = Math.round(prestamo.saldo_pendiente * prestamo.tasa_aplicada);
-  const montoMaximo = prestamo.saldo_pendiente + interes;
-
-  if (opts.monto < interes) {
+  if (montoCapital === 0 && montoInteres === 0) {
+    return { ok: false, error: 'Debe indicar al menos un monto (capital o interés).' };
+  }
+  if (montoCapital > prestamo.saldo_pendiente) {
     return {
       ok: false,
-      error: `El abono debe cubrir al menos el interés del período ($${interes.toLocaleString('es-CO')}).`,
-    };
-  }
-  if (opts.monto > montoMaximo) {
-    return {
-      ok: false,
-      error: `El abono supera el saldo total ($${montoMaximo.toLocaleString('es-CO')}).`,
+      error: `El capital excede el saldo pendiente (${formatMoneda(prestamo.saldo_pendiente)}).`,
     };
   }
 
-  const capital = opts.monto - interes;
-  const nuevoSaldo = Math.max(0, prestamo.saldo_pendiente - capital);
+  const nuevoSaldo = Math.max(0, prestamo.saldo_pendiente - montoCapital);
   const estado: Prestamo['estado'] = nuevoSaldo <= 0 ? 'pagado' : 'activo';
 
   state.actualizarPrestamo(prestamo.id, { saldo_pendiente: nuevoSaldo, estado });
 
-  state.registrarMovimiento({
-    grupo_id: grupo.id,
-    socio_id: prestamo.socio_id,
-    tipo: 'pago_prestamo',
-    monto: opts.monto,
-    fecha: opts.fecha,
-    comprobante_url: null,
-    corrige_movimiento_id: null,
-    nota: estado === 'pagado' ? 'Préstamo cancelado' : 'Abono a préstamo',
-    creado_por: opts.userId ?? '',
-  });
+  if (montoCapital > 0) {
+    state.registrarMovimiento({
+      grupo_id: grupo.id,
+      socio_id: prestamo.socio_id,
+      tipo: 'pago_prestamo',
+      monto: montoCapital,
+      fecha: opts.fecha,
+      comprobante_url: null,
+      corrige_movimiento_id: null,
+      nota: estado === 'pagado' ? 'Préstamo cancelado' : 'Abono a préstamo',
+      creado_por: opts.userId ?? '',
+    });
+  }
 
-  state.registrarMovimiento({
-    grupo_id: grupo.id,
-    socio_id: prestamo.socio_id,
-    tipo: 'interes',
-    monto: interes,
-    fecha: opts.fecha,
-    comprobante_url: null,
-    corrige_movimiento_id: null,
-    nota: 'Interés del período por pago de préstamo',
-    creado_por: opts.userId ?? '',
-  });
+  if (montoInteres > 0) {
+    state.registrarMovimiento({
+      grupo_id: grupo.id,
+      socio_id: prestamo.socio_id,
+      tipo: 'interes',
+      monto: montoInteres,
+      fecha: opts.fecha,
+      comprobante_url: null,
+      corrige_movimiento_id: null,
+      nota: 'Interés del período por pago de préstamo',
+      creado_por: opts.userId ?? '',
+    });
+  }
 
   return { ok: true };
 }
@@ -460,6 +618,7 @@ export function renovarCiclo(opts: {
 export function registrarCorreccion(opts: {
   grupoId: string;
   corrigeMovimientoId: string;
+  montoCorregido: number;
   nota: string;
   userId: string | null | undefined;
 }): ResultadoOperacion {
@@ -475,12 +634,15 @@ export function registrarCorreccion(opts: {
   if (!opts.nota || opts.nota.trim().length < 3) {
     return { ok: false, error: 'Debe indicar el motivo de la corrección.' };
   }
+  if (opts.montoCorregido < 0) {
+    return { ok: false, error: 'El monto corregido no puede ser negativo.' };
+  }
 
   state.registrarMovimiento({
     grupo_id: grupo.id,
     socio_id: original.socio_id,
     tipo: 'correccion',
-    monto: 0,
+    monto: opts.montoCorregido,
     fecha: hoyISO(),
     comprobante_url: null,
     corrige_movimiento_id: original.id,

@@ -42,6 +42,22 @@ export function useDashboardFinanciero(grupoId: string): DashboardFinanciero {
 
   const grupoCoincide = grupo?.id === grupoId;
 
+  // Suscripción al store: cualquier mutación (movimientos, préstamos, socios,
+  // grupo) fuerza el recálculo de métricas en tiempo real.
+  useEffect(() => {
+    const unsubscribe = useMockStore.subscribe((state, prevState) => {
+      if (
+        state.movimientos !== prevState.movimientos ||
+        state.prestamos !== prevState.prestamos ||
+        state.socios !== prevState.socios ||
+        state.grupo !== prevState.grupo
+      ) {
+        setUltimoCambio((c) => c + 1);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   // Suscripción Realtime al grupo (mock por ahora; swap a Supabase sin tocar la UI)
   useEffect(() => {
     if (!grupoCoincide) return;

@@ -35,6 +35,8 @@ type MovimientoTipo =
 
 type Grupo = {
   id: string;
+  /** Código de invitación único (ticket de acceso al grupo). */
+  codigo: string;
   nombre: string;
   fecha_inicio: ISODateString;
   fecha_cierre_pactada: ISODateString;
@@ -80,6 +82,36 @@ type Prestamo = {
   saldo_pendiente: number;
 };
 
+type SolicitudPrestamoEstado = 'pendiente' | 'aprobada' | 'rechazada';
+
+/** Petición de préstamo hecha por un socio; requiere aprobación del principal. */
+type SolicitudPrestamo = {
+  id: string;
+  grupo_id: string;
+  socio_id: string;
+  monto_solicitado: number;
+  fecha_solicitud: ISODateString;
+  estado: SolicitudPrestamoEstado;
+  respuesta_nota: string | null;
+};
+
+type NotificacionTipo = 'solicitud_prestamo' | 'respuesta_solicitud';
+
+type NotificacionRol = 'principal' | 'socio';
+
+/** Notificación interna del grupo (mock por ahora; swap a backend en la HU de notificaciones). */
+type Notificacion = {
+  id: string;
+  grupo_id: string;
+  tipo: NotificacionTipo;
+  para_rol: NotificacionRol;
+  socio_id: string | null;
+  titulo: string;
+  mensaje: string;
+  leida: boolean;
+  creado_en: ISODateTimeString;
+};
+
 // ──────────────────────────────────────────────
 // Auth types
 // ──────────────────────────────────────────────
@@ -103,6 +135,11 @@ export type {
   Socio,
   MovimientoLedger,
   Prestamo,
+  SolicitudPrestamo,
+  SolicitudPrestamoEstado,
+  Notificacion,
+  NotificacionTipo,
+  NotificacionRol,
   RolUsuario,
   Sesion,
 };

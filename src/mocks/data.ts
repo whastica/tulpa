@@ -6,6 +6,7 @@ import type { Grupo, Socio, MovimientoLedger, Prestamo } from '@/types';
 
 export const datasetPrueba: Grupo = {
   id: 'grupo-001',
+  codigo: 'TULPA1',
   nombre: 'Fondo Ahorro Comunal San José',
   fecha_inicio: '2025-01-01',
   fecha_cierre_pactada: '2025-12-31',

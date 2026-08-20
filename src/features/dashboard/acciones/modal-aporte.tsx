@@ -27,9 +27,9 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useMockStore } from '@/mocks';
 import { useSession } from '@/features/auth';
-import { registrarAporte, registrarAporteConMora } from '../operaciones';
+import { registrarAporte } from '../operaciones';
 import { calcularEstadoPagoSocio, ultimoMesConMovimientos, type EstadoPagoSocio } from '../metrics';
-import { formatMoneda } from '@/lib/format';
+import { formatMoneda, valorNumeroFinito } from '@/lib/format';
 import {
   COMPROBANTE_ACCEPT,
   esComprobanteValido,
@@ -127,7 +127,6 @@ export function ModalAporte({
 
     if (estado.mesesAtrasados > 0) {
       form.setValue('monto', estado.totalACobrar, { shouldValidate: true });
-      form.setValue('tipo', 'aporte', { shouldValidate: true });
     } else {
       form.setValue('monto', socio.cuota_mensual_fija, { shouldValidate: true });
     }
@@ -160,43 +159,22 @@ export function ModalAporte({
   async function onSubmit(data: AporteFormData) {
     if (!grupo) return;
 
-    if (enMora && estadoPago) {
-      const resultado = registrarAporteConMora({
-        grupoId: grupo.id,
-        socioId: data.socioId,
-        cuotaAtrasada: estadoPago.cuotaAtrasada,
-        cuotaActual: estadoPago.cuotaActual,
-        recargoMora: estadoPago.recargoMora,
-        fecha: data.fecha,
-        comprobanteUrl: data.comprobante,
-        nota: data.nota,
-        userId: session?.userId,
-      });
-      if (resultado.ok) {
-        toast.success('Aporte y mora registrados correctamente');
-        handleReset();
-        onOpenChange(false);
-      } else {
-        toast.error(resultado.error);
-      }
+    const resultado = registrarAporte({
+      grupoId: grupo.id,
+      tipo: data.tipo,
+      socioId: data.socioId,
+      monto: data.monto,
+      fecha: data.fecha,
+      nota: data.nota,
+      comprobanteUrl: data.comprobante,
+      userId: session?.userId,
+    });
+    if (resultado.ok) {
+      toast.success('Aporte registrado correctamente');
+      handleReset();
+      onOpenChange(false);
     } else {
-      const resultado = registrarAporte({
-        grupoId: grupo.id,
-        tipo: data.tipo,
-        socioId: data.socioId,
-        monto: data.monto,
-        fecha: data.fecha,
-        nota: data.nota,
-        comprobanteUrl: data.comprobante,
-        userId: session?.userId,
-      });
-      if (resultado.ok) {
-        toast.success('Aporte registrado correctamente');
-        handleReset();
-        onOpenChange(false);
-      } else {
-        toast.error(resultado.error);
-      }
+      toast.error(resultado.error);
     }
   }
 
@@ -271,32 +249,30 @@ export function ModalAporte({
               </div>
             )}
 
-            {!enMora && (
-              <FormField
-                control={form.control}
-                name="tipo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={(v) => field.onChange(v ?? 'aporte')}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="aporte">Aporte (cuota de ahorro)</SelectItem>
-                        <SelectItem value="mora">Mora (multa)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+            <FormField
+              control={form.control}
+              name="tipo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => field.onChange(v ?? 'aporte')}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="aporte">Aporte (cuota de ahorro)</SelectItem>
+                      <SelectItem value="mora">Mora (multa)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -311,10 +287,8 @@ export function ModalAporte({
                         min="1"
                         step="1"
                         placeholder="0"
-                        readOnly={enMora}
-                        disabled={enMora}
                         {...field}
-                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                        onChange={(e) => field.onChange(valorNumeroFinito(e.target.valueAsNumber))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -423,7 +397,7 @@ export function ModalAporte({
               <DialogClose render={<Button variant="outline" onClick={handleReset}>Cancelar</Button>} />
               <Button type="submit" className="gap-1.5">
                 <HandCoins className="size-4" aria-hidden="true" />
-                {enMora ? 'Confirmar aporte + mora' : 'Confirmar aporte'}
+                Confirmar aporte
               </Button>
             </DialogFooter>
           </form>

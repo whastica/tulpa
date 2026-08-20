@@ -29,4 +29,6 @@ export { ResumenTarjetas } from './resumen-tarjetas';
 export { TablaSocios } from './tabla-socios';
 export { GraficoEvolucion } from './grafico-evolucion';
 export { EstadoConexion } from './estado-conexion';
+export { TarjetaInvitacion } from './tarjeta-invitacion';
 export { BarraAcciones, SeccionMovimientos } from './acciones';
+export { SeccionSolicitudesPrestamo } from './seccion-solicitudes-prestamo';
