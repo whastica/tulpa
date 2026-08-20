@@ -12,7 +12,7 @@ import { ModalAporte } from './modal-aporte';
 import { ModalSolicitarPrestamo } from './modal-solicitar-prestamo';
 import { ModalPagoPrestamo } from './modal-pago-prestamo';
 import { ModalRetiro } from './modal-retiro';
-import { ModalCierre } from './modal-cierre';
+import { ModalCierreORenovacion } from './modal-cierre-renovacion';
 import { MoreHorizontal, Plus, Banknote, HandCoins, DoorOpen, RotateCcw } from 'lucide-react';
 import type { Grupo } from '@/types';
 
@@ -79,7 +79,7 @@ export function BarraAcciones({
         onOpenChange={(a) => !a && cerrar()}
         liquidez={liquidez}
       />
-      <ModalCierre
+      <ModalCierreORenovacion
         open={modalActivo === 'cierre'}
         onOpenChange={(a) => !a && cerrar()}
         grupo={grupo}

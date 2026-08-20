@@ -183,6 +183,97 @@ export function calcularRendimientosTotales(
 }
 
 // ──────────────────────────────────────────────
+// Retiro anticipado (HU 7.1)
+// ──────────────────────────────────────────────
+
+/**
+ * Capital a entregar a un socio que se retira anticipadamente = suma de sus
+ * aportes (cuotas de ahorro). Las moras e intereses son rendimientos del grupo
+ * y NO se devuelven al socio retirado.
+ */
+export function calcularCapitalAportadoSocio(
+  movimientos: MovimientoLedger[],
+  socioId: string
+): number {
+  return movimientos
+    .filter((m) => m.socio_id === socioId && m.tipo === 'aporte')
+    .reduce((sum, m) => sum + m.monto, 0);
+}
+
+// ──────────────────────────────────────────────
+// Liquidación final y reparto de rendimientos (HU 8.2)
+// ──────────────────────────────────────────────
+
+export type FilaLiquidacion = {
+  socio: Socio;
+  /** Capital ahorrado = cuotas (aportes) + moras pagadas por el socio. */
+  capitalAhorrado: number;
+  /** Participación del socio sobre el capital total de los activos (0..1). */
+  proporcion: number;
+  /** Parte de los rendimientos que le corresponde al socio. */
+  parteRendimiento: number;
+  /** Total a entregar = capital ahorrado + parte de rendimientos. */
+  totalAEntregar: number;
+};
+
+export type ResumenLiquidacion = {
+  filas: FilaLiquidacion[];
+  totalCapitalActivos: number;
+  rendimientosTotales: number;
+  fondoTotal: number;
+};
+
+/**
+ * Reparto proporcional de rendimientos al cierre del ciclo.
+ * Solo participan los socios activos: su capital ahorrado (aportes + moras)
+ * determina el porcentaje de los rendimientos (intereses + moras) que reciben.
+ * Los socios retirados anticipadamente no participan del reparto.
+ */
+export function calcularLiquidacion(opts: {
+  grupo: Grupo;
+  socios: Socio[];
+  movimientos: MovimientoLedger[];
+}): ResumenLiquidacion {
+  const { grupo, socios, movimientos } = opts;
+  const movsGrupo = movimientosDelGrupo(movimientos, grupo.id);
+
+  const activos = socios.filter((s) => s.grupo_id === grupo.id && s.estado === 'activo');
+
+  const capitalPorSocio = new Map<string, number>();
+  for (const m of movsGrupo) {
+    if (!m.socio_id) continue;
+    if (m.tipo !== 'aporte' && m.tipo !== 'mora') continue;
+    capitalPorSocio.set(m.socio_id, (capitalPorSocio.get(m.socio_id) ?? 0) + m.monto);
+  }
+
+  const totalCapitalActivos = activos.reduce(
+    (sum, s) => sum + (capitalPorSocio.get(s.id) ?? 0),
+    0
+  );
+  const rendimientosTotales = calcularRendimientosTotales(movimientos, grupo.id);
+
+  const filas: FilaLiquidacion[] = activos.map((socio) => {
+    const capitalAhorrado = capitalPorSocio.get(socio.id) ?? 0;
+    const proporcion = totalCapitalActivos > 0 ? capitalAhorrado / totalCapitalActivos : 0;
+    const parteRendimiento = Math.round(proporcion * rendimientosTotales);
+    return {
+      socio,
+      capitalAhorrado,
+      proporcion,
+      parteRendimiento,
+      totalAEntregar: capitalAhorrado + parteRendimiento,
+    };
+  });
+
+  return {
+    filas,
+    totalCapitalActivos,
+    rendimientosTotales,
+    fondoTotal: calcularFondoTotal(movimientos, grupo.id),
+  };
+}
+
+// ──────────────────────────────────────────────
 // Tabla de socios
 // ──────────────────────────────────────────────
 

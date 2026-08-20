@@ -67,7 +67,6 @@ export function ModalSolicitarPrestamoSocio({
   onOpenChange: (open: boolean) => void;
 }) {
   const { session } = useSession();
-  const { liquidez, montoMaximo, tasa } = useLimitesPrestamo(grupo.id);
 
   const form = useForm<SolicitudFormData>({
     resolver: zodResolver(solicitudSchema),
@@ -75,6 +74,10 @@ export function ModalSolicitarPrestamoSocio({
   });
 
   const monto = form.watch('monto') || 0;
+  const { fondoTotal, liquidez, montoMaximo, montoMaximoIndividual, tasa } =
+    useLimitesPrestamo(grupo.id, session?.socioId ?? '');
+  const montoMaximoRegla50 = Math.round(fondoTotal * 0.5);
+
   const interesEstimado = Math.round(monto * tasa);
   const totalDevolver = monto + interesEstimado;
 
@@ -106,16 +109,22 @@ export function ModalSolicitarPrestamoSocio({
         <DialogHeader>
           <DialogTitle>Solicitar préstamo</DialogTitle>
           <DialogDescription>
-            Envía tu petición de préstamo al principal del grupo para que la apruebe. Máximo 50% del
-            fondo y limitado por la liquidez disponible.
+            Envía tu petición de préstamo al principal del grupo para que la apruebe. Tope máximo:
+            2x tu ahorro, 50% del fondo y liquidez disponible.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm sm:grid-cols-4">
           <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Tope 2× Ahorro</span>
+            <span className="font-mono font-medium text-foreground">
+              {formatMoneda(montoMaximoIndividual)}
+            </span>
+          </div>
+          <div className="flex flex-col gap-0.5">
             <span className="text-xs text-muted-foreground">Límite Regla 50%</span>
             <span className="font-mono font-medium text-foreground">
-              {formatMoneda(montoMaximo)}
+              {formatMoneda(montoMaximoRegla50)}
             </span>
           </div>
           <div className="flex flex-col gap-0.5">
@@ -124,23 +133,30 @@ export function ModalSolicitarPrestamoSocio({
               {formatMoneda(liquidez)}
             </span>
           </div>
-          {hayMonto && (
-            <>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground">Interés a Generar</span>
-                <span className="font-mono font-medium text-foreground">
-                  {formatMoneda(interesEstimado)}
-                </span>
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground">Total a Devolver</span>
-                <span className="font-mono font-medium text-foreground">
-                  {formatMoneda(totalDevolver)}
-                </span>
-              </div>
-            </>
-          )}
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Límite Efectivo</span>
+            <span className="font-mono font-semibold text-foreground">
+              {formatMoneda(montoMaximo)}
+            </span>
+          </div>
         </div>
+
+        {hayMonto && (
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">Interés a Generar</span>
+              <span className="font-mono font-medium text-foreground">
+                {formatMoneda(interesEstimado)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">Total a Devolver</span>
+              <span className="font-mono font-medium text-foreground">
+                {formatMoneda(totalDevolver)}
+              </span>
+            </div>
+          </div>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
@@ -185,8 +201,8 @@ export function ModalSolicitarPrestamoSocio({
               <Alert variant="destructive">
                 <TriangleAlert className="size-4" aria-hidden="true" />
                 <AlertDescription>
-                  El monto solicitado excede el límite del 50% del fondo o la liquidez actual
-                  disponible.
+                  El monto solicitado excede tu límite permitido (tope 2× tu ahorro, 50% del fondo o
+                  liquidez disponible).
                 </AlertDescription>
               </Alert>
             )}

@@ -5,5 +5,5 @@ export { ModalSolicitarPrestamo } from './modal-solicitar-prestamo';
 export { ModalSolicitarPrestamoSocio } from './modal-solicitar-prestamo-socio';
 export { ModalPagoPrestamo } from './modal-pago-prestamo';
 export { ModalRetiro } from './modal-retiro';
-export { ModalCierre } from './modal-cierre';
+export { ModalCierreORenovacion } from './modal-cierre-renovacion';
 export { ModalCorreccion } from './modal-correccion';

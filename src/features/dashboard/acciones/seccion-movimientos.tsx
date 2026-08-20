@@ -18,6 +18,7 @@ const TIPO_LABELS: Record<string, string> = {
   cierre_liquidacion: 'Cierre',
   renovacion: 'Renovación',
   correccion: 'Corrección',
+  cambio_cuota: 'Cambio de cuota',
 };
 
 const TIPO_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -30,6 +31,7 @@ const TIPO_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'o
   cierre_liquidacion: 'outline',
   renovacion: 'outline',
   correccion: 'secondary',
+  cambio_cuota: 'outline',
 };
 
 export function SeccionMovimientos({

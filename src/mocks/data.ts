@@ -26,6 +26,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-002',
@@ -36,6 +38,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-003',
@@ -46,6 +50,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-004',
@@ -56,6 +62,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-005',
@@ -66,6 +74,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-006',
@@ -76,6 +86,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-007',
@@ -86,6 +98,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-008',
@@ -96,6 +110,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-009',
@@ -106,6 +122,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-010',
@@ -116,6 +134,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-011',
@@ -126,6 +146,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-012',
@@ -136,6 +158,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-013',
@@ -146,6 +170,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-014',
@@ -156,6 +182,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'retirado_anticipado',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: '2025-04-15',
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
   {
     id: 'socio-015',
@@ -166,6 +194,8 @@ export const sociosIniciales: Socio[] = [
     estado: 'activo',
     fecha_ingreso: '2025-01-01',
     fecha_retiro: null,
+    aceptoTerminos: false,
+    fechaAceptacionTerminos: null,
   },
 ];
 

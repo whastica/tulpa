@@ -37,6 +37,8 @@ function setupStore(opts?: { saldoPendiente?: number; tasa?: number }) {
         estado: 'activo',
         fecha_ingreso: '2025-01-01',
         fecha_retiro: null,
+        aceptoTerminos: true,
+        fechaAceptacionTerminos: null,
       },
     ],
     movimientos: [],
