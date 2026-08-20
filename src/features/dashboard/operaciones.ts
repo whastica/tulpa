@@ -2,7 +2,12 @@
 
 import { useMockStore } from '@/mocks';
 import type { Grupo, Prestamo } from '@/types';
-import { calcularFondoTotal, calcularLiquidez, calcularRendimientosTotales } from './metrics';
+import {
+  calcularCapitalAportadoSocio,
+  calcularFondoTotal,
+  calcularLiquidez,
+  calcularRendimientosTotales,
+} from './metrics';
 import { formatMoneda } from '@/lib/format';
 
 // ──────────────────────────────────────────────
@@ -55,10 +60,11 @@ function validarSocioActivoDeGrupo(
   return { ok: true };
 }
 
-function limitesPrestamoGrupo(grupoId: string): {
+function limitesPrestamoSocio(grupoId: string, socioId: string): {
   fondoTotal: number;
   liquidez: number;
   montoMaximo: number;
+  montoMaximoIndividual: number;
 } {
   const state = useMockStore.getState();
   const movimientos = state.getMovimientosPorGrupo(grupoId);
@@ -68,7 +74,15 @@ function limitesPrestamoGrupo(grupoId: string): {
     .reduce((sum, p) => sum + p.saldo_pendiente, 0);
   const fondoTotal = calcularFondoTotal(movimientos, grupoId);
   const liquidez = calcularLiquidez(fondoTotal, prestamosActivos);
-  return { fondoTotal, liquidez, montoMaximo: fondoTotal * 0.5 };
+  // Regla del tope del doble: el préstamo no puede superar 2x el ahorro (aportes) del socio.
+  const montoMaximoIndividual =
+    calcularCapitalAportadoSocio(state.getMovimientosPorSocio(socioId), socioId) * 2;
+  const montoMaximo = Math.min(
+    montoMaximoIndividual,
+    Math.round(fondoTotal * 0.5),
+    liquidez
+  );
+  return { fondoTotal, liquidez, montoMaximo, montoMaximoIndividual };
 }
 
 function hoyISO(): string {
@@ -79,9 +93,15 @@ function hoyISO(): string {
   return `${y}-${m}-${d}`;
 }
 
-function unAnioDespues(fecha: string): string {
-  const [y, m, d] = fecha.split('-').map(Number);
-  return `${(y ?? 0) + 1}-${String(m ?? 1).padStart(2, '0')}-${String(d ?? 1).padStart(2, '0')}`;
+/** Timestamp local 'YYYY-MM-DD HH:mm' para la aceptación del reglamento. */
+function ahoraLocal(): string {
+  const ahora = new Date();
+  const y = ahora.getFullYear();
+  const m = String(ahora.getMonth() + 1).padStart(2, '0');
+  const d = String(ahora.getDate()).padStart(2, '0');
+  const h = String(ahora.getHours()).padStart(2, '0');
+  const min = String(ahora.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${h}:${min}`;
 }
 
 // ──────────────────────────────────────────────
@@ -222,25 +242,25 @@ export function registrarPrestamo(opts: {
     return { ok: false, error: 'El monto debe ser mayor a 0.' };
   }
 
-  const movimientos = state.getMovimientosPorGrupo(grupo.id);
-  const prestamosActivos = state
-    .getPrestamos()
-    .filter((p) => p.grupo_id === grupo.id && p.estado === 'activo')
-    .reduce((sum, p) => sum + p.saldo_pendiente, 0);
-  const fondoTotal = calcularFondoTotal(movimientos, grupo.id);
-  const liquidez = calcularLiquidez(fondoTotal, prestamosActivos);
-  const montoMaximo = fondoTotal * 0.5;
+  const limites = limitesPrestamoSocio(grupo.id, socio.id);
+  const montoMaximoRegla50 = Math.round(limites.fondoTotal * 0.5);
 
-  if (opts.monto > montoMaximo) {
+  if (opts.monto > limites.montoMaximoIndividual) {
     return {
       ok: false,
-      error: `El monto supera el límite permitido (máximo 50% del fondo: $${montoMaximo.toLocaleString('es-CO')}).`,
+      error: `El monto supera el tope del socio (máximo 2 veces su ahorro: $${limites.montoMaximoIndividual.toLocaleString('es-CO')}).`,
     };
   }
-  if (opts.monto > liquidez) {
+  if (opts.monto > montoMaximoRegla50) {
     return {
       ok: false,
-      error: `Liquidez insuficiente para el desembolso (disponible: $${liquidez.toLocaleString('es-CO')}).`,
+      error: `El monto supera el límite permitido (máximo 50% del fondo: $${montoMaximoRegla50.toLocaleString('es-CO')}).`,
+    };
+  }
+  if (opts.monto > limites.liquidez) {
+    return {
+      ok: false,
+      error: `Liquidez insuficiente para el desembolso (disponible: $${limites.liquidez.toLocaleString('es-CO')}).`,
     };
   }
 
@@ -290,11 +310,20 @@ export function solicitarPrestamoSocio(opts: {
   const grupo = obtenerGrupo(opts.grupoId)!;
   const socio = state.getSocioPorId(opts.socioId)!;
 
-  const { liquidez, montoMaximo } = limitesPrestamoGrupo(opts.grupoId);
-  if (opts.monto > montoMaximo) {
+  const limites = limitesPrestamoSocio(opts.grupoId, opts.socioId);
+  const { liquidez, montoMaximoIndividual } = limites;
+  const montoMaximoRegla50 = Math.round(limites.fondoTotal * 0.5);
+
+  if (opts.monto > montoMaximoIndividual) {
     return {
       ok: false,
-      error: `El monto supera el límite permitido (máximo 50% del fondo: $${montoMaximo.toLocaleString('es-CO')}).`,
+      error: `El monto supera el tope del socio (máximo 2 veces su ahorro: $${montoMaximoIndividual.toLocaleString('es-CO')}).`,
+    };
+  }
+  if (opts.monto > montoMaximoRegla50) {
+    return {
+      ok: false,
+      error: `El monto supera el límite permitido (máximo 50% del fondo: $${montoMaximoRegla50.toLocaleString('es-CO')}).`,
     };
   }
   if (opts.monto > liquidez) {
@@ -491,10 +520,23 @@ export function registrarRetiro(opts: {
     return { ok: false, error: 'El socio ya no está activo.' };
   }
 
-  const aporteTotal = state
-    .getMovimientosPorSocio(socio.id)
-    .filter((m) => m.tipo === 'aporte')
-    .reduce((sum, m) => sum + m.monto, 0);
+  // Regla de paz y salvo: el ahorro es colateral de los préstamos; un socio con
+  // deuda activa no puede retirarse anticipadamente.
+  const deudaActiva = state
+    .getPrestamosPorSocio(socio.id)
+    .some((p) => p.estado === 'activo' && p.saldo_pendiente > 0);
+  if (deudaActiva) {
+    return {
+      ok: false,
+      error:
+        'El socio tiene un préstamo activo. Debe estar a paz y salvo para poder procesar su retiro.',
+    };
+  }
+
+  const aporteTotal = calcularCapitalAportadoSocio(
+    state.getMovimientosPorSocio(socio.id),
+    socio.id
+  );
 
   const movimientos = state.getMovimientosPorGrupo(grupo.id);
   const prestamosActivos = state
@@ -533,6 +575,35 @@ export function registrarRetiro(opts: {
 }
 
 // ──────────────────────────────────────────────
+// Aceptación del Reglamento del Fondo (gatekeeper de acceso)
+// Solo el propio socio puede aceptar su reglamento.
+// ──────────────────────────────────────────────
+
+export function aceptarReglamento(opts: {
+  socioId: string;
+  userId: string | null | undefined;
+}): ResultadoOperacion {
+  const state = useMockStore.getState();
+  const socio = state.getSocioPorId(opts.socioId);
+  if (!socio) {
+    return { ok: false, error: 'El socio no existe.' };
+  }
+  if (!opts.userId || socio.user_id !== opts.userId) {
+    return { ok: false, error: 'Solo el socio puede aceptar su propio reglamento.' };
+  }
+  if (socio.aceptoTerminos) {
+    return { ok: false, error: 'Ya aceptaste el reglamento del fondo.' };
+  }
+
+  state.actualizarSocio(opts.socioId, {
+    aceptoTerminos: true,
+    fechaAceptacionTerminos: ahoraLocal(),
+  });
+
+  return { ok: true };
+}
+
+// ──────────────────────────────────────────────
 // Cierre de ciclo
 // ──────────────────────────────────────────────
 
@@ -564,51 +635,75 @@ export function cerrarCiclo(opts: {
 }
 
 // ──────────────────────────────────────────────
-// Renovación de ciclo (hereda el fondo del ciclo cerrado)
+// Extensión de ciclo (HU 8.1)
+// Renueva solo la fecha de cierre pactada: conserva saldos, historial,
+// rendimientos y membresía. Permite ajustar la cuota de cada socio activo,
+// vigente desde la nueva fecha pactada.
 // ──────────────────────────────────────────────
 
-export function renovarCiclo(opts: {
+export function extenderCiclo(opts: {
   grupoId: string;
+  nuevaFechaCierre: string;
+  cuotas: { socioId: string; cuotaMensual: number }[];
   userId: string | null | undefined;
 }): ResultadoOperacion {
+  const base = validarPrincipal(opts.grupoId, opts.userId);
+  if (!base.ok) return base;
+
   const state = useMockStore.getState();
-  const grupo = obtenerGrupo(opts.grupoId);
-  if (!grupo) return { ok: false, error: 'El grupo no existe.' };
-  if (grupo.estado !== 'cerrado') {
-    return { ok: false, error: 'El grupo debe estar cerrado antes de renovar el ciclo.' };
+  const grupo = obtenerGrupo(opts.grupoId)!;
+  if (grupo.estado !== 'activo') {
+    return { ok: false, error: 'El grupo no está activo.' };
   }
-  if (!esPrincipalDe(grupo, opts.userId)) {
-    return { ok: false, error: 'Solo el principal del grupo puede renovar el ciclo.' };
+  if (!opts.nuevaFechaCierre || opts.nuevaFechaCierre <= grupo.fecha_cierre_pactada) {
+    return { ok: false, error: 'La nueva fecha debe ser posterior a la fecha de cierre actual.' };
   }
 
-  const fondoTotal = calcularFondoTotal(state.getMovimientosPorGrupo(grupo.id), grupo.id);
+  for (const c of opts.cuotas) {
+    const socio = state.getSocioPorId(c.socioId);
+    if (!socio || socio.grupo_id !== grupo.id) {
+      return { ok: false, error: 'Uno de los socios no pertenece al grupo.' };
+    }
+    if (socio.estado !== 'activo') {
+      return { ok: false, error: 'Solo los socios activos pueden ajustar su cuota.' };
+    }
+    if (!Number.isFinite(c.cuotaMensual) || c.cuotaMensual <= 0) {
+      return { ok: false, error: 'La cuota debe ser mayor a 0.' };
+    }
+  }
 
-  const inicio = hoyISO();
-  const cierre = unAnioDespues(inicio);
-  const numeroCiclo = (Number(grupo.id.split('-')[1]) ?? 1) + 1;
-
-  const nuevoGrupo = state.crearGrupo({
-    nombre: `${grupo.nombre} · Ciclo ${numeroCiclo}`,
-    fecha_inicio: inicio,
-    fecha_cierre_pactada: cierre,
-    tasa_interes_prestamo: grupo.tasa_interes_prestamo,
-    porcentaje_mora: grupo.porcentaje_mora,
-    principal_user_id: grupo.principal_user_id,
-  });
+  state.actualizarGrupo({ fecha_cierre_pactada: opts.nuevaFechaCierre });
 
   state.registrarMovimiento({
-    grupo_id: nuevoGrupo.id,
+    grupo_id: grupo.id,
     socio_id: null,
     tipo: 'renovacion',
-    monto: fondoTotal,
-    fecha: inicio,
+    monto: 0,
+    fecha: hoyISO(),
     comprobante_url: null,
     corrige_movimiento_id: null,
-    nota: `Renovación de ciclo. Fondo heredado del ciclo anterior: $${fondoTotal.toLocaleString('es-CO')}`,
+    nota: 'Extensión de ciclo pactada',
     creado_por: opts.userId ?? '',
   });
 
-  return { ok: true, data: nuevoGrupo };
+  for (const c of opts.cuotas) {
+    const socio = state.getSocioPorId(c.socioId)!;
+    if (socio.cuota_mensual_fija === c.cuotaMensual) continue;
+    state.actualizarSocio(c.socioId, { cuota_mensual_fija: c.cuotaMensual });
+    state.registrarMovimiento({
+      grupo_id: grupo.id,
+      socio_id: c.socioId,
+      tipo: 'cambio_cuota',
+      monto: 0,
+      fecha: hoyISO(),
+      comprobante_url: null,
+      corrige_movimiento_id: null,
+      nota: `Cuota actualizada de ${formatMoneda(socio.cuota_mensual_fija)} a ${formatMoneda(c.cuotaMensual)}. Vigente desde ${opts.nuevaFechaCierre}`,
+      creado_por: opts.userId ?? '',
+    });
+  }
+
+  return { ok: true };
 }
 
 // ──────────────────────────────────────────────

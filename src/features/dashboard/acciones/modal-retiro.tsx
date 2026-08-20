@@ -29,6 +29,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { useMockStore } from '@/mocks';
 import { useSession } from '@/features/auth';
 import { registrarRetiro } from '../operaciones';
+import { calcularCapitalAportadoSocio } from '../metrics';
 import { formatMoneda } from '@/lib/format';
 import { DoorOpen, TriangleAlert, Info } from 'lucide-react';
 
@@ -68,6 +69,7 @@ export function ModalRetiro({
   const grupo = useMockStore((s) => s.grupo);
   const getSociosPorGrupo = useMockStore((s) => s.getSociosPorGrupo);
   const movimientos = useMockStore((s) => s.movimientos);
+  const prestamos = useMockStore((s) => s.prestamos);
 
   const socios = useMemo(() => {
     if (!grupo) return [];
@@ -83,22 +85,27 @@ export function ModalRetiro({
 
   const socio = useMemo(() => socios.find((s) => s.id === socioId) ?? null, [socios, socioId]);
 
-  const aportesTotales = useMemo(() => {
+  const capitalAportado = useMemo(() => {
     if (!grupo || !socio) return 0;
-    return movimientos
-      .filter(
-        (m) =>
-          m.grupo_id === grupo.id &&
-          m.socio_id === socio.id &&
-          m.tipo === 'aporte'
-      )
-      .reduce((sum, m) => sum + m.monto, 0);
+    return calcularCapitalAportadoSocio(
+      movimientos.filter((m) => m.grupo_id === grupo.id),
+      socio.id
+    );
   }, [grupo, socio, movimientos]);
 
-  const superaLiquidez = aportesTotales > liquidez;
+  const superaLiquidez = capitalAportado > liquidez;
+
+  const deudaActiva = useMemo(() => {
+    if (!socio) return false;
+    return prestamos.some(
+      (p) => p.socio_id === socio.id && p.estado === 'activo' && p.saldo_pendiente > 0
+    );
+  }, [prestamos, socio]);
+
+  const retiroBloqueado = superaLiquidez || deudaActiva;
 
   async function onSubmit(data: RetiroFormData) {
-    if (!grupo || superaLiquidez) return;
+    if (!grupo || retiroBloqueado) return;
     const resultado = registrarRetiro({
       grupoId: grupo.id,
       socioId: data.socioId,
@@ -155,19 +162,30 @@ export function ModalRetiro({
             />
 
             {socio && (
-              <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Capital a retirar</span>
-                  <span className="font-mono font-medium text-foreground">
-                    {formatMoneda(aportesTotales)}
-                  </span>
+              <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Capital Aportado</span>
+                    <span className="font-mono font-medium text-foreground">
+                      {formatMoneda(capitalAportado)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Rendimientos Acumulados</span>
+                    <span className="font-mono font-medium text-foreground">
+                      {formatMoneda(0)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Total a Entregar</span>
+                    <span className="font-mono font-medium text-foreground">
+                      {formatMoneda(capitalAportado)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Liquidez disponible</span>
-                  <span className="font-mono font-medium text-foreground">
-                    {formatMoneda(liquidez)}
-                  </span>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  El retiro anticipado no otorga ganancias.
+                </p>
               </div>
             )}
 
@@ -185,21 +203,33 @@ export function ModalRetiro({
               )}
             />
 
-            {superaLiquidez && (
+            {deudaActiva && (
               <Alert variant="destructive">
                 <TriangleAlert className="size-4" aria-hidden="true" />
                 <AlertDescription>
-                  Liquidez insuficiente. Disponible: {formatMoneda(liquidez)} — capital a retirar: {formatMoneda(aportesTotales)}.
+                  El socio tiene un préstamo activo. Debe estar a paz y salvo para poder procesar
+                  su retiro.
                 </AlertDescription>
               </Alert>
             )}
 
-            {socio && !superaLiquidez && (
-              <Alert>
+            {superaLiquidez && (
+              <Alert variant="destructive">
+                <TriangleAlert className="size-4" aria-hidden="true" />
+                <AlertDescription>
+                  No hay liquidez disponible suficiente ({formatMoneda(liquidez)}) para entregar
+                  el capital ahorrado ({formatMoneda(capitalAportado)}). El socio debe esperar a que
+                  se recupere el saldo de los préstamos activos para procesar el retiro.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {socio && !retiroBloqueado && (
+              <Alert variant="warning">
                 <Info className="size-4" aria-hidden="true" />
                 <AlertDescription>
-                  Se devolverán {formatMoneda(aportesTotales)} de capital. El socio perderá el
-                  derecho a las ganancias del ciclo actual.
+                  El socio recibirá únicamente el dinero que ha ahorrado. Al retirarse antes de la
+                  fecha de cierre, renuncia al reparto de rendimientos/intereses del grupo.
                 </AlertDescription>
               </Alert>
             )}
@@ -208,12 +238,12 @@ export function ModalRetiro({
               <DialogClose render={<Button variant="outline">Cancelar</Button>} />
               <Button
                 type="submit"
-                disabled={!socio || superaLiquidez}
+                disabled={!socio || retiroBloqueado}
                 variant="destructive"
                 className="gap-1.5"
               >
                 <DoorOpen className="size-4" aria-hidden="true" />
-                Confirmar retiro
+                Confirmar Retiro
               </Button>
             </DialogFooter>
           </form>

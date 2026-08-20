@@ -12,9 +12,11 @@ import {
   X,
   Users,
   ScrollText,
+  HandCoins,
 } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { useMockStore } from '@/mocks';
+import { ModalReglamentoFondo } from '@/features/fondo/modal-reglamento';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { NotificacionesBell } from '@/components/notificaciones';
@@ -59,6 +61,15 @@ function construirNavItems(
       label: 'Ledger',
       description: 'Libro de movimientos',
       icon: ScrollText,
+    });
+  }
+
+  if (grupoPath) {
+    items.push({
+      href: `${grupoPath}/liquidacion`,
+      label: 'Liquidación',
+      description: 'Cierre y reparto final',
+      icon: HandCoins,
     });
   }
 
@@ -290,6 +301,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </footer>
       </div>
+
+      {/* Gatekeeper: reglamento del fondo para socios que aún no aceptan */}
+      <ModalReglamentoFondo />
     </div>
   );
 }

@@ -27,7 +27,8 @@ type MovimientoTipo =
   | 'correccion'
   | 'retiro_anticipado'
   | 'renovacion'
-  | 'cierre_liquidacion';
+  | 'cierre_liquidacion'
+  | 'cambio_cuota';
 
 // ──────────────────────────────────────────────
 // Entity types
@@ -55,6 +56,10 @@ type Socio = {
   estado: SocioEstado;
   fecha_ingreso: ISODateString;
   fecha_retiro: ISODateString | null;
+  /** Aceptación del Reglamento del Fondo (gatekeeper de acceso al Dashboard). */
+  aceptoTerminos: boolean;
+  /** Timestamp local 'YYYY-MM-DD HH:mm' de la aceptación del reglamento. */
+  fechaAceptacionTerminos: string | null;
 };
 
 type MovimientoLedger = {

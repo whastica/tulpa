@@ -44,6 +44,8 @@ export function ResumenInicio({
       estado: 'activo' as const,
       fecha_ingreso: grupo.fecha_inicio,
       fecha_retiro: null,
+      aceptoTerminos: false,
+      fechaAceptacionTerminos: null,
     }));
 
     registrarSocios(sociosParaGuardar);

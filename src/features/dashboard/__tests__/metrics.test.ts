@@ -31,6 +31,8 @@ function socio(id: string, fechaIngreso: string, estado: Socio['estado'] = 'acti
     estado,
     fecha_ingreso: fechaIngreso,
     fecha_retiro: null,
+    aceptoTerminos: true,
+    fechaAceptacionTerminos: null,
   };
 }
 
