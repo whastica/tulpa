@@ -10,10 +10,14 @@ import {
   LogOut,
   Menu,
   X,
+  Users,
+  ScrollText,
 } from 'lucide-react';
 import { useSession } from '@/features/auth';
+import { useMockStore } from '@/mocks';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { NotificacionesBell } from '@/components/notificaciones';
 import { cn } from '@/lib/utils';
 
 const APP_NAME = 'Tulpa';
@@ -27,21 +31,47 @@ type NavItem = {
   principalOnly?: boolean;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  {
-    href: '/dashboard',
-    label: 'Panel',
-    description: 'Resumen del grupo',
-    icon: LayoutDashboard,
-  },
-  {
+function construirNavItems(
+  grupoPath: string | null,
+  isPrincipal: boolean
+): NavItem[] {
+  const items: NavItem[] = [
+    {
+      href: grupoPath ?? '/dashboard',
+      label: 'Panel',
+      description: 'Resumen del grupo',
+      icon: LayoutDashboard,
+    },
+  ];
+
+  if (grupoPath) {
+    items.push({
+      href: `${grupoPath}/socios`,
+      label: 'Socios',
+      description: 'Estado de los socios',
+      icon: Users,
+    });
+  }
+
+  if (grupoPath) {
+    items.push({
+      href: `${grupoPath}/ledger`,
+      label: 'Ledger',
+      description: 'Libro de movimientos',
+      icon: ScrollText,
+    });
+  }
+
+  items.push({
     href: '/admin',
     label: 'Administración',
     description: 'Operaciones del fondo',
     icon: Settings,
     principalOnly: true,
-  },
-];
+  });
+
+  return items.filter((item) => !item.principalOnly || isPrincipal);
+}
 
 function Brand() {
   return (
@@ -74,9 +104,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isPrincipal, logout, socio } = useSession();
+  const grupo = useMockStore((s) => s.grupo);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const navItems = NAV_ITEMS.filter((item) => !item.principalOnly || isPrincipal);
+  const grupoPath = grupo ? `/dashboard/grupos/${grupo.id}` : null;
+  const navItems = construirNavItems(grupoPath, isPrincipal);
 
   const userLabel = isPrincipal
     ? 'Principal'
@@ -88,11 +120,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   function handleLogout() {
     logout();
-    router.push('/login');
+    router.push('/');
   }
 
   function renderNavItem({ href, label, description, icon: Icon }: NavItem) {
-    const isActive = pathname === href || pathname.startsWith(`${href}/`);
+    const isActive = pathname === href;
     return (
       <Link
         key={href}
@@ -137,6 +169,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           {navItems.map(renderNavItem)}
         </nav>
+
+        <div className="flex items-center justify-between gap-2 px-5 py-2">
+          <span className="text-xs font-medium text-muted-foreground">Notificaciones</span>
+          <NotificacionesBell />
+        </div>
 
         <div className="p-4">
           <div className="rounded-xl border border-border bg-background p-3">
@@ -190,7 +227,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Button>
             <Brand />
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <NotificacionesBell />
+            <ThemeToggle />
+          </div>
         </div>
 
         {mobileOpen && (

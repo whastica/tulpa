@@ -15,6 +15,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -28,7 +29,7 @@ import {
 import { useSession } from '@/features/auth';
 import { useMockStore } from '@/mocks';
 import { registrarCorreccion } from '../operaciones';
-import { formatMoneda } from '@/lib/format';
+import { formatMoneda, valorNumeroFinito } from '@/lib/format';
 import { AlertTriangle } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -36,6 +37,9 @@ import { AlertTriangle } from 'lucide-react';
 // ──────────────────────────────────────────────
 
 const correccionSchema = z.object({
+  montoCorregido: z
+    .number({ error: 'Debe ser un número válido' })
+    .min(0, 'El monto no puede ser negativo'),
   nota: z
     .string({ error: 'La nota es obligatoria' })
     .min(3, 'Describe el motivo de la corrección (mínimo 3 caracteres)')
@@ -69,7 +73,7 @@ export function ModalCorreccion({
 
   const form = useForm<CorreccionFormData>({
     resolver: zodResolver(correccionSchema),
-    defaultValues: { nota: '' },
+    defaultValues: { montoCorregido: movimiento?.monto ?? 0, nota: '' },
   });
 
   async function onSubmit(data: CorreccionFormData) {
@@ -77,6 +81,7 @@ export function ModalCorreccion({
     const resultado = registrarCorreccion({
       grupoId: grupo.id,
       corrigeMovimientoId: movimiento.id,
+      montoCorregido: data.montoCorregido,
       nota: data.nota,
       userId: session?.userId,
     });
@@ -141,6 +146,27 @@ export function ModalCorreccion({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+            <FormField
+              control={form.control}
+              name="montoCorregido"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Monto corregido ($)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="0"
+                      {...field}
+                      onChange={(e) => field.onChange(valorNumeroFinito(e.target.valueAsNumber))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="nota"

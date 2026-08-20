@@ -1,11 +1,14 @@
 import { create } from 'zustand';
-import type { Grupo, Socio, MovimientoLedger, Prestamo } from '@/types';
-import {
-  datasetPrueba,
-  sociosIniciales,
-  movimientosIniciales,
-  prestamosIniciales,
-} from './data';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import type {
+  Grupo,
+  Socio,
+  MovimientoLedger,
+  Prestamo,
+  SolicitudPrestamo,
+  Notificacion,
+  NotificacionRol,
+} from '@/types';
 
 // ──────────────────────────────────────────────
 // Store types
@@ -13,15 +16,26 @@ import {
 
 type MockStore = {
   // ── State ──
+  grupos: Grupo[];
   grupo: Grupo | null;
   socios: Socio[];
   movimientos: MovimientoLedger[];
   prestamos: Prestamo[];
+  solicitudesPrestamo: SolicitudPrestamo[];
+  notificaciones: Notificacion[];
+  /** Contadores por prefijo para generar ids únicos (persistidos). */
+  contadores: Record<string, number>;
 
   // ── Read: Grupo ──
+  getGrupos: () => Grupo[];
   getGrupo: () => Grupo | null;
-  crearGrupo: (datos: Omit<Grupo, 'id' | 'estado'>) => Grupo;
+  getGrupoPorId: (id: string) => Grupo | undefined;
+  getGrupoPorCodigo: (codigo: string) => Grupo | undefined;
+  crearGrupo: (datos: Omit<Grupo, 'id' | 'codigo' | 'estado'>) => Grupo;
   actualizarGrupo: (datos: Partial<Grupo>) => void;
+  seleccionarGrupo: (id: string) => void;
+  seleccionarGrupoPorCodigo: (codigo: string) => void;
+  iniciarNuevoGrupo: () => void;
 
   // ── Read: Socios ──
   getSocios: () => Socio[];
@@ -45,137 +59,262 @@ type MockStore = {
   getPrestamoPorId: (id: string) => Prestamo | undefined;
   registrarPrestamo: (prestamo: Omit<Prestamo, 'id'>) => void;
   actualizarPrestamo: (id: string, datos: Partial<Prestamo>) => void;
+
+  // ── Solicitudes de préstamo ──
+  getSolicitudesPrestamo: () => SolicitudPrestamo[];
+  getSolicitudesPorGrupo: (grupoId: string) => SolicitudPrestamo[];
+  getSolicitudesPorSocio: (socioId: string) => SolicitudPrestamo[];
+  crearSolicitudPrestamo: (solicitud: Omit<SolicitudPrestamo, 'id'>) => SolicitudPrestamo;
+  actualizarSolicitudPrestamo: (id: string, datos: Partial<SolicitudPrestamo>) => void;
+
+  // ── Notificaciones ──
+  getNotificaciones: () => Notificacion[];
+  getNotificacionesParaRol: (rol: NotificacionRol) => Notificacion[];
+  crearNotificacion: (notificacion: Omit<Notificacion, 'id' | 'creado_en'>) => void;
+  marcarNotificacionesLeidas: (ids: string[]) => void;
+  marcarTodasLeidasParaRol: (rol: NotificacionRol) => void;
 };
 
 // ──────────────────────────────────────────────
-// ID generator (por prefijo, evita colisiones con el dataset sembrado)
+// Código de invitación (ticket de acceso al grupo)
 // ──────────────────────────────────────────────
 
-function maxIdPorPrefijo(items: readonly { id: string }[]): Record<string, number> {
-  const maximo: Record<string, number> = {};
-  for (const item of items) {
-    const [prefijo, numero] = item.id.split('-');
-    maximo[prefijo] = Math.max(maximo[prefijo] ?? 0, Number(numero) ?? 0);
-  }
-  return maximo;
-}
+const CARACTERES_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-const contadores: Record<string, number> = {
-  ...maxIdPorPrefijo(sociosIniciales),
-  ...maxIdPorPrefijo(movimientosIniciales),
-  ...maxIdPorPrefijo(prestamosIniciales),
-  grupo: Number(datasetPrueba.id.split('-')[1]) ?? 1,
-};
-
-function generarId(prefijo: string): string {
-  contadores[prefijo] = (contadores[prefijo] ?? 0) + 1;
-  return `${prefijo}-${String(contadores[prefijo]).padStart(3, '0')}`;
+function generarCodigoUnico(existentes: string[]): string {
+  let codigo = '';
+  do {
+    codigo = Array.from(
+      { length: 6 },
+      () => CARACTERES_CODIGO[Math.floor(Math.random() * CARACTERES_CODIGO.length)]
+    ).join('');
+  } while (existentes.includes(codigo));
+  return codigo;
 }
 
 // ──────────────────────────────────────────────
-// Store implementation
+// Store implementation (persistido en localStorage:
+// al no haber backend, los grupos creados sobreviven al refresco)
 // ──────────────────────────────────────────────
 
-export const useMockStore = create<MockStore>((set, get) => ({
-  // ── State (sembrado con el dataset demo) ──
-  grupo: datasetPrueba,
-  socios: sociosIniciales,
-  movimientos: movimientosIniciales,
-  prestamos: prestamosIniciales,
+export const useMockStore = create<MockStore>()(
+  persist(
+    (set, get) => ({
+      // ── State (arranca vacío: los grupos se crean desde la landing) ──
+      grupos: [],
+      grupo: null,
+      socios: [],
+      movimientos: [],
+      prestamos: [],
+      solicitudesPrestamo: [],
+      notificaciones: [],
+      contadores: {},
 
-  // ── Grupo ──
-  getGrupo: () => get().grupo,
+      // ── Grupo ──
+      getGrupos: () => get().grupos,
 
-  crearGrupo: (datos) => {
-    const id = generarId('grupo');
-    const nuevo: Grupo = {
-      ...datos,
-      id,
-      estado: 'activo',
-    };
-    set({ grupo: nuevo });
-    return nuevo;
-  },
+      getGrupo: () => get().grupo,
 
-  actualizarGrupo: (datos) =>
-    set((state) => ({
-      grupo: state.grupo ? { ...state.grupo, ...datos } : null,
-    })),
+      getGrupoPorId: (id) => get().grupos.find((g) => g.id === id),
 
-  // ── Socios ──
-  getSocios: () => get().socios,
+      getGrupoPorCodigo: (codigo) =>
+        get().grupos.find((g) => g.codigo === codigo),
 
-  getSocioPorId: (id) => get().socios.find((s) => s.id === id),
+      crearGrupo: (datos) => {
+        const n = (get().contadores['grupo'] ?? 0) + 1;
+        const id = `grupo-${String(n).padStart(3, '0')}`;
+        const nuevo: Grupo = {
+          ...datos,
+          id,
+          codigo: generarCodigoUnico(get().grupos.map((g) => g.codigo)),
+          estado: 'activo',
+        };
+        set((state) => ({
+          contadores: { ...state.contadores, grupo: n },
+          grupos: [...state.grupos, nuevo],
+          grupo: nuevo,
+        }));
+        return nuevo;
+      },
 
-  getSociosPorGrupo: (grupoId) =>
-    get().socios.filter((s) => s.grupo_id === grupoId),
+      actualizarGrupo: (datos) =>
+        set((state) => ({
+          grupo: state.grupo ? { ...state.grupo, ...datos } : null,
+          grupos: state.grupos.map((g) =>
+            g.id === state.grupo?.id ? { ...g, ...datos } : g
+          ),
+        })),
 
-  getSociosActivos: () =>
-    get().socios.filter((s) => s.estado === 'activo'),
+      seleccionarGrupo: (id) =>
+        set((state) => ({
+          grupo: state.grupos.find((g) => g.id === id) ?? state.grupo,
+        })),
 
-  registrarSocios: (socios) => {
-    const nuevosSocios: Socio[] = socios.map((s) => ({
-      ...s,
-      id: generarId('socio'),
-    }));
-    set((state) => ({
-      socios: [...state.socios, ...nuevosSocios],
-    }));
-  },
+      seleccionarGrupoPorCodigo: (codigo) =>
+        set((state) => ({
+          grupo: state.grupos.find((g) => g.codigo === codigo) ?? state.grupo,
+        })),
 
-  actualizarSocio: (id, datos) =>
-    set((state) => ({
-      socios: state.socios.map((s) => (s.id === id ? { ...s, ...datos } : s)),
-    })),
+      iniciarNuevoGrupo: () => set({ grupo: null }),
 
-  // ── Movimientos ──
-  getMovimientos: () => get().movimientos,
+      // ── Socios ──
+      getSocios: () => get().socios,
 
-  getMovimientosPorSocio: (socioId) =>
-    get().movimientos.filter((m) => m.socio_id === socioId),
+      getSocioPorId: (id) => get().socios.find((s) => s.id === id),
 
-  getMovimientosPorGrupo: (grupoId) =>
-    get().movimientos.filter((m) => m.grupo_id === grupoId),
+      getSociosPorGrupo: (grupoId) =>
+        get().socios.filter((s) => s.grupo_id === grupoId),
 
-  getMovimientosPorTipo: (tipo) =>
-    get().movimientos.filter((m) => m.tipo === tipo),
+      getSociosActivos: () =>
+        get().socios.filter((s) => s.estado === 'activo'),
 
-  registrarMovimiento: (movimiento) => {
-    const id = generarId('mov');
-    const ahora = new Date().toISOString();
-    const nuevo: MovimientoLedger = {
-      ...movimiento,
-      id,
-      creado_en: ahora,
-    };
-    set((state) => ({
-      movimientos: [...state.movimientos, nuevo],
-    }));
-  },
+      registrarSocios: (socios) => {
+        const base = get().contadores['socio'] ?? 0;
+        const nuevosSocios: Socio[] = socios.map((s, i) => ({
+          ...s,
+          id: `socio-${String(base + i + 1).padStart(3, '0')}`,
+        }));
+        set((state) => ({
+          contadores: { ...state.contadores, socio: base + socios.length },
+          socios: [...state.socios, ...nuevosSocios],
+        }));
+      },
 
-  // ── Préstamos ──
-  getPrestamos: () => get().prestamos,
+      actualizarSocio: (id, datos) =>
+        set((state) => ({
+          socios: state.socios.map((s) => (s.id === id ? { ...s, ...datos } : s)),
+        })),
 
-  getPrestamosActivos: () =>
-    get().prestamos.filter((p) => p.estado === 'activo'),
+      // ── Movimientos ──
+      getMovimientos: () => get().movimientos,
 
-  getPrestamosPorSocio: (socioId) =>
-    get().prestamos.filter((p) => p.socio_id === socioId),
+      getMovimientosPorSocio: (socioId) =>
+        get().movimientos.filter((m) => m.socio_id === socioId),
 
-  getPrestamoPorId: (id) => get().prestamos.find((p) => p.id === id),
+      getMovimientosPorGrupo: (grupoId) =>
+        get().movimientos.filter((m) => m.grupo_id === grupoId),
 
-  registrarPrestamo: (prestamo) => {
-    const id = generarId('prest');
-    const nuevo: Prestamo = { ...prestamo, id };
-    set((state) => ({
-      prestamos: [...state.prestamos, nuevo],
-    }));
-  },
+      getMovimientosPorTipo: (tipo) =>
+        get().movimientos.filter((m) => m.tipo === tipo),
 
-  actualizarPrestamo: (id, datos) =>
-    set((state) => ({
-      prestamos: state.prestamos.map((p) =>
-        p.id === id ? { ...p, ...datos } : p
-      ),
-    })),
-}));
+      registrarMovimiento: (movimiento) => {
+        const n = (get().contadores['mov'] ?? 0) + 1;
+        const id = `mov-${String(n).padStart(3, '0')}`;
+        const ahora = new Date().toISOString();
+        const nuevo: MovimientoLedger = {
+          ...movimiento,
+          id,
+          creado_en: ahora,
+        };
+        set((state) => ({
+          contadores: { ...state.contadores, mov: n },
+          movimientos: [...state.movimientos, nuevo],
+        }));
+      },
+
+      // ── Préstamos ──
+      getPrestamos: () => get().prestamos,
+
+      getPrestamosActivos: () =>
+        get().prestamos.filter((p) => p.estado === 'activo'),
+
+      getPrestamosPorSocio: (socioId) =>
+        get().prestamos.filter((p) => p.socio_id === socioId),
+
+      getPrestamoPorId: (id) => get().prestamos.find((p) => p.id === id),
+
+      registrarPrestamo: (prestamo) => {
+        const n = (get().contadores['prest'] ?? 0) + 1;
+        const id = `prest-${String(n).padStart(3, '0')}`;
+        const nuevo: Prestamo = { ...prestamo, id };
+        set((state) => ({
+          contadores: { ...state.contadores, prest: n },
+          prestamos: [...state.prestamos, nuevo],
+        }));
+      },
+
+      actualizarPrestamo: (id, datos) =>
+        set((state) => ({
+          prestamos: state.prestamos.map((p) =>
+            p.id === id ? { ...p, ...datos } : p
+          ),
+        })),
+
+      // ── Solicitudes de préstamo ──
+      getSolicitudesPrestamo: () => get().solicitudesPrestamo,
+
+      getSolicitudesPorGrupo: (grupoId) =>
+        get().solicitudesPrestamo.filter((s) => s.grupo_id === grupoId),
+
+      getSolicitudesPorSocio: (socioId) =>
+        get().solicitudesPrestamo.filter((s) => s.socio_id === socioId),
+
+      crearSolicitudPrestamo: (solicitud) => {
+        const n = (get().contadores['sol'] ?? 0) + 1;
+        const id = `sol-${String(n).padStart(3, '0')}`;
+        const nueva: SolicitudPrestamo = { ...solicitud, id };
+        set((state) => ({
+          contadores: { ...state.contadores, sol: n },
+          solicitudesPrestamo: [...state.solicitudesPrestamo, nueva],
+        }));
+        return nueva;
+      },
+
+      actualizarSolicitudPrestamo: (id, datos) =>
+        set((state) => ({
+          solicitudesPrestamo: state.solicitudesPrestamo.map((s) =>
+            s.id === id ? { ...s, ...datos } : s
+          ),
+        })),
+
+      // ── Notificaciones ──
+      getNotificaciones: () => get().notificaciones,
+
+      getNotificacionesParaRol: (rol) =>
+        get().notificaciones.filter((n) => n.para_rol === rol),
+
+      crearNotificacion: (notificacion) => {
+        const n = (get().contadores['notif'] ?? 0) + 1;
+        const id = `notif-${String(n).padStart(3, '0')}`;
+        const nueva: Notificacion = {
+          ...notificacion,
+          id,
+          creado_en: new Date().toISOString(),
+        };
+        set((state) => ({
+          contadores: { ...state.contadores, notif: n },
+          notificaciones: [...state.notificaciones, nueva],
+        }));
+      },
+
+      marcarNotificacionesLeidas: (ids) =>
+        set((state) => ({
+          notificaciones: state.notificaciones.map((n) =>
+            ids.includes(n.id) ? { ...n, leida: true } : n
+          ),
+        })),
+
+      marcarTodasLeidasParaRol: (rol) =>
+        set((state) => ({
+          notificaciones: state.notificaciones.map((n) =>
+            n.para_rol === rol ? { ...n, leida: true } : n
+          ),
+        })),
+    }),
+    {
+      name: 'tulpa-mock-store',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      partialize: (state) => ({
+        grupos: state.grupos,
+        grupo: state.grupo,
+        socios: state.socios,
+        movimientos: state.movimientos,
+        prestamos: state.prestamos,
+        solicitudesPrestamo: state.solicitudesPrestamo,
+        notificaciones: state.notificaciones,
+        contadores: state.contadores,
+      }),
+    }
+  )
+);

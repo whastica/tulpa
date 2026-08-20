@@ -19,7 +19,7 @@ export function RouteGuard({ children, allowedRoles, redirectTo = '/dashboard' }
     if (!hydrated) return;
 
     if (!isAuthenticated) {
-      router.replace('/login');
+      router.replace('/');
       return;
     }
 
